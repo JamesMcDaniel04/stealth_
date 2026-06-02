@@ -1,0 +1,115 @@
+# Hard-case eval set — the single most important artifact in the project.
+#
+# Each pair is a case where naive resolution tends to go wrong. The dataset is a
+# small CRM/sales graph: company / person / opportunity / location mentions joined
+# by relationships. Relational + anchor features must separate the hard cases that
+# embedding/name similarity alone gets wrong.
+#
+# label: "same"      => the two mentions are the SAME real-world entity
+# label: "different" => the two mentions are DIFFERENT real-world entities
+#
+# The "trap" field documents why each case fools the embedding-only baseline.
+
+mentions:
+  # --- A: identical-ish name, DIFFERENT companies (embedding merges them, wrongly) ---
+  - {id: acme-inc,   name: "Acme Inc",   type: Company, attributes: {domain: "acme.com",      external_id: "SF-001"}}
+  - {id: acme-corp,  name: "Acme Corp",  type: Company, attributes: {domain: "acme-corp.io",  external_id: "SF-002"}}
+
+  # --- B: different surface form, SAME company (embedding keeps them apart, wrongly) ---
+  - {id: ibm-long,   name: "International Business Machines", type: Company, attributes: {domain: "ibm.com", external_id: "SF-100"}}
+  - {id: ibm-short,  name: "IBM",        type: Company, attributes: {domain: "ibm.com",       external_id: "SF-100"}}
+
+  # --- C: rebrand — name totally changes, SAME CRM record (shared external_id) ---
+  - {id: fb,         name: "Facebook",       type: Company, attributes: {domain: "fb.com",   external_id: "SF-200"}}
+  - {id: meta,       name: "Meta Platforms", type: Company, attributes: {domain: "meta.com", external_id: "SF-200"}}
+
+  # --- D: same name, SAME company (easy positive control) ---
+  - {id: globex-1,   name: "Globex",     type: Company, attributes: {domain: "globex.com",    external_id: "SF-300"}}
+  - {id: globex-2,   name: "Globex",     type: Company, attributes: {domain: "globex.com",    external_id: "SF-300"}}
+
+  # --- E: different name, DIFFERENT companies (easy negative control) ---
+  - {id: initech,    name: "Initech",    type: Company, attributes: {domain: "initech.com",   external_id: "SF-400"}}
+  - {id: umbrella,   name: "Umbrella Corporation", type: Company, attributes: {domain: "umbrella.co", external_id: "SF-401"}}
+
+  # --- F: collective signal — similar name, shared distinctive neighbor (same CFO) ---
+  - {id: stark-1,    name: "Stark Industries", type: Company, attributes: {domain: "stark.com"}}
+  - {id: stark-2,    name: "Stark Ind.",       type: Company, attributes: {domain: "stark.com"}}
+
+  # --- H: alias resolvable ONLY via collective propagation ---
+  # Wayne and its holdco share NO name token and NO anchor key, so pairwise sees
+  # nothing. They share an employee (Lucius) under two surface forms; once those
+  # two person-mentions merge, Wayne & Gotham share a neighbor and become resolvable.
+  - {id: wayne,    name: "Wayne Enterprises", type: Company, attributes: {domain: "wayne.com"}}
+  - {id: gotham,   name: "Gotham Holdings",   type: Company, attributes: {external_id: "SF-500"}}
+  - {id: lucius-a, name: "Lucius Fox", type: Person, attributes: {email: "lucius@wayne.com"}}
+  - {id: lucius-b, name: "L. Fox",     type: Person, attributes: {email: "lucius@wayne.com"}}
+
+  # --- G: the classic ambiguous-person problem ---
+  - {id: jsmith-acme,    name: "John Smith", type: Person, attributes: {email: "john@acme.com"}}
+  - {id: jsmith-initech, name: "John Smith", type: Person, attributes: {email: "jsmith@initech.com"}}
+  - {id: jsmith-abbrev,  name: "J. Smith",   type: Person, attributes: {email: "john@acme.com"}}
+
+  # neighbor mentions (people / opportunities / locations) — referenced by relationships
+  - {id: p-jane,    name: "Jane Doe",      type: Person}
+  - {id: p-bob,     name: "Bob Smith",     type: Person}
+  - {id: p-alice,   name: "Alice Nguyen",  type: Person}
+  - {id: p-mark,    name: "Mark Z",        type: Person}
+  - {id: p-pepper,  name: "Pepper Potts",  type: Person}     # distinctive shared CFO
+  - {id: opp-alpha, name: "Project Alpha", type: Opportunity}
+  - {id: opp-beta,  name: "Project Beta",  type: Opportunity}
+  - {id: opp-gamma, name: "Project Gamma", type: Opportunity}
+  - {id: opp-delta, name: "Project Delta", type: Opportunity}
+  - {id: loc-bos,   name: "Boston",        type: Location}
+  - {id: loc-den,   name: "Denver",        type: Location}
+
+relationships:
+  # Acme Inc neighborhood (disjoint from Acme Corp)
+  - {src: acme-inc,  dst: p-jane,    type: EMPLOYS}
+  - {src: acme-inc,  dst: opp-alpha, type: HAS_OPPORTUNITY}
+  - {src: acme-inc,  dst: loc-bos,   type: LOCATED_IN}
+  - {src: jsmith-acme,   dst: acme-inc, type: WORKS_AT}
+  - {src: jsmith-abbrev, dst: acme-inc, type: WORKS_AT}
+  # Acme Corp neighborhood (disjoint from Acme Inc)
+  - {src: acme-corp, dst: p-bob,     type: EMPLOYS}
+  - {src: acme-corp, dst: opp-beta,  type: HAS_OPPORTUNITY}
+  - {src: acme-corp, dst: loc-den,   type: LOCATED_IN}
+  # IBM — both surface forms share the same neighbors
+  - {src: ibm-long,  dst: p-alice,   type: EMPLOYS}
+  - {src: ibm-short, dst: p-alice,   type: EMPLOYS}
+  - {src: ibm-long,  dst: opp-gamma, type: HAS_OPPORTUNITY}
+  - {src: ibm-short, dst: opp-gamma, type: HAS_OPPORTUNITY}
+  # Facebook / Meta — share neighbors across the rebrand
+  - {src: fb,        dst: p-mark,    type: EMPLOYS}
+  - {src: meta,      dst: p-mark,    type: EMPLOYS}
+  - {src: fb,        dst: opp-delta, type: HAS_OPPORTUNITY}
+  - {src: meta,      dst: opp-delta, type: HAS_OPPORTUNITY}
+  # Globex — same neighbors
+  - {src: globex-1,  dst: p-jane,    type: EMPLOYS}
+  - {src: globex-2,  dst: p-jane,    type: EMPLOYS}
+  # Initech / Umbrella — fully disjoint
+  - {src: initech,   dst: jsmith-initech, type: EMPLOYS}
+  # Stark — shared distinctive CFO neighbor
+  - {src: stark-1,   dst: p-pepper,  type: EMPLOYS}
+  - {src: stark-2,   dst: p-pepper,  type: EMPLOYS}
+  - {src: jsmith-initech, dst: initech, type: WORKS_AT}
+  # Wayne / Gotham — joined only through the shared (aliased) employee Lucius
+  - {src: wayne,  dst: lucius-a, type: EMPLOYS}
+  - {src: gotham, dst: lucius-b, type: EMPLOYS}
+
+pairs:
+  - {a: acme-inc,      b: acme-corp,     label: different, trap: "identical 'Acme' name + high embedding sim, but disjoint neighbors & different domain/external_id"}
+  - {a: ibm-long,      b: ibm-short,     label: same,      trap: "acronym vs full name => low name/embedding sim, but same domain + external_id + shared neighbors"}
+  - {a: fb,            b: meta,          label: same,      trap: "rebrand => zero name/embedding sim, but same external_id + shared neighbors"}
+  - {a: globex-1,      b: globex-2,      label: same,      trap: "easy positive control"}
+  - {a: initech,       b: umbrella,      label: different, trap: "easy negative control"}
+  - {a: stark-1,       b: stark-2,       label: same,      trap: "moderate name sim; clinched by shared distinctive CFO neighbor (collective signal)"}
+  - {a: jsmith-acme,   b: jsmith-initech, label: different, trap: "identical person name 'John Smith', but different employer + different email anchor"}
+  - {a: jsmith-acme,   b: jsmith-abbrev,  label: same,      trap: "'John Smith' vs 'J. Smith' => lower name sim, but same employer + same email"}
+  - {a: jsmith-abbrev, b: jsmith-initech, label: different, trap: "abbreviated name vs full, different employer + email"}
+  - {a: acme-inc,      b: ibm-long,      label: different, trap: "control: unrelated companies"}
+  - {a: acme-corp,     b: globex-1,      label: different, trap: "control: unrelated companies"}
+  - {a: fb,            b: initech,       label: different, trap: "control: unrelated companies"}
+  - {a: stark-1,       b: umbrella,      label: different, trap: "control: unrelated companies"}
+  - {a: ibm-short,     b: meta,          label: different, trap: "control: unrelated companies"}
+  - {a: wayne,         b: gotham,        label: same,      trap: "alias/holdco: no shared name token or anchor; resolvable ONLY after the shared employee merges (collective lift)"}
+  - {a: lucius-a,      b: lucius-b,      label: same,      trap: "'Lucius Fox' vs 'L. Fox', clinched by shared email"}
