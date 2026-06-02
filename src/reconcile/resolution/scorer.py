@@ -25,8 +25,8 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "bias": -2.5,  # prior: assume different until evidence says otherwise
     "name_sim": 2.0,
     "embedding_cosine": 1.5,
-    "jaccard_neighbors": 3.0,  # strongest learnable signal: shared relationships
-    "shared_neighbor_count": 1.0,
+    "jaccard_neighbors": 0.5,  # weak on its own (two 1-neighbor nodes score 1.0)
+    "adamic_adar": 3.0,  # the real relational signal: discriminative shared neighbors
     "edge_type_overlap": 0.0,  # noise within a type; kept for transparency only
     "anchor_agreement": 4.0,  # strong: shared authoritative id / domain / email
     "anchor_conflict": -6.0,  # near-veto: conflicting id overrides name/embedding

@@ -19,6 +19,9 @@ down:             ## Stop services
 demo:             ## Run the defining end-to-end demo (needs `make up`)
 	uv run python -m demo.demo
 
+serve:            ## Run the API (uvicorn)
+	uv run uvicorn reconcile.api.app:app --reload --port 8000
+
 eval:             ## Phase 1 gate: collective vs embedding-only on hard cases (no Docker needed)
 	uv run python -m eval.run_eval
 

@@ -43,6 +43,7 @@ mentions:
   - {id: gotham,   name: "Gotham Holdings",   type: Company, attributes: {external_id: "SF-500"}}
   - {id: lucius-a, name: "Lucius Fox", type: Person, attributes: {email: "lucius@wayne.com"}}
   - {id: lucius-b, name: "L. Fox",     type: Person, attributes: {email: "lucius@wayne.com"}}
+  - {id: wayne-tower, name: "Wayne Tower", type: Location}   # shared HQ — a second discriminative link
 
   # --- G: the classic ambiguous-person problem ---
   - {id: jsmith-acme,    name: "John Smith", type: Person, attributes: {email: "john@acme.com"}}
@@ -92,9 +93,11 @@ relationships:
   - {src: stark-1,   dst: p-pepper,  type: EMPLOYS}
   - {src: stark-2,   dst: p-pepper,  type: EMPLOYS}
   - {src: jsmith-initech, dst: initech, type: WORKS_AT}
-  # Wayne / Gotham — joined only through the shared (aliased) employee Lucius
-  - {src: wayne,  dst: lucius-a, type: EMPLOYS}
-  - {src: gotham, dst: lucius-b, type: EMPLOYS}
+  # Wayne / Gotham — joined through a shared HQ and the shared (aliased) employee Lucius
+  - {src: wayne,  dst: lucius-a,    type: EMPLOYS}
+  - {src: gotham, dst: lucius-b,    type: EMPLOYS}
+  - {src: wayne,  dst: wayne-tower, type: LOCATED_IN}
+  - {src: gotham, dst: wayne-tower, type: LOCATED_IN}
 
 pairs:
   - {a: acme-inc,      b: acme-corp,     label: different, trap: "identical 'Acme' name + high embedding sim, but disjoint neighbors & different domain/external_id"}

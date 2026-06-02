@@ -8,6 +8,7 @@ made earlier in a propagation round become shared neighbors in the next round.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz
@@ -25,7 +26,11 @@ class PairFeatures:
     name_sim: float
     embedding_cosine: float
     jaccard_neighbors: float
-    shared_neighbor_count: float  # normalized: min(count, 3) / 3
+    # Adamic-Adar: shared neighbors weighted by how discriminative each is
+    # (1/log of the neighbor's degree). Sharing a CFO counts; sharing an employer
+    # — a high-degree hub — barely does. This is what stops two co-workers from
+    # being merged just because they share an employer.
+    adamic_adar: float
     edge_type_overlap: float
     anchor_agreement: float
     anchor_conflict: float
@@ -36,7 +41,7 @@ class PairFeatures:
             "name_sim": self.name_sim,
             "embedding_cosine": self.embedding_cosine,
             "jaccard_neighbors": self.jaccard_neighbors,
-            "shared_neighbor_count": self.shared_neighbor_count,
+            "adamic_adar": self.adamic_adar,
             "edge_type_overlap": self.edge_type_overlap,
             "anchor_agreement": self.anchor_agreement,
             "anchor_conflict": self.anchor_conflict,
@@ -54,6 +59,7 @@ class FeatureContext:
     edge_types: dict[str, set[str]] = field(default_factory=dict)
     embedder: Embedder = field(default_factory=default_embedder)
     _emb_cache: dict[str, object] = field(default_factory=dict)
+    _deg_cache: dict[int, dict[str, int]] = field(default_factory=dict)
 
     @classmethod
     def build(
@@ -87,6 +93,23 @@ class FeatureContext:
             return set(ns)
         return {neighbor_map.get(n, n) for n in ns}
 
+    def _mapped_degree(self, neighbor_map: dict[str, str] | None) -> dict[str, int]:
+        """Degree of every node in the cluster-mapped graph (cached per map identity)."""
+        key = id(neighbor_map) if neighbor_map else 0
+        cached = self._deg_cache.get(key)
+        if cached is not None:
+            return cached
+        adj: dict[str, set[str]] = {}
+        for mid, ns in self.neighbors.items():
+            rm = neighbor_map.get(mid, mid) if neighbor_map else mid
+            for n in ns:
+                rn = neighbor_map.get(n, n) if neighbor_map else n
+                if rn != rm:
+                    adj.setdefault(rm, set()).add(rn)
+        deg = {k: len(v) for k, v in adj.items()}
+        self._deg_cache[key] = deg
+        return deg
+
     def _anchor_signal(self, a: Mention, b: Mention) -> tuple[float, float]:
         for key in ANCHOR_KEYS:
             va, vb = a.anchor(key), b.anchor(key)
@@ -112,7 +135,9 @@ class FeatureContext:
         inter = na & nb
         union = na | nb
         jaccard = len(inter) / len(union) if union else 0.0
-        shared_norm = min(len(inter), 3) / 3.0
+
+        deg = self._mapped_degree(neighbor_map)
+        adamic_adar = sum(1.0 / math.log2(2.0 + deg.get(n, 1)) for n in inter)
 
         ea, eb = self.edge_types.get(a_id, set()), self.edge_types.get(b_id, set())
         eunion = ea | eb
@@ -124,7 +149,7 @@ class FeatureContext:
             name_sim=name_sim,
             embedding_cosine=emb_cos,
             jaccard_neighbors=jaccard,
-            shared_neighbor_count=shared_norm,
+            adamic_adar=adamic_adar,
             edge_type_overlap=edge_overlap,
             anchor_agreement=agreement,
             anchor_conflict=conflict,
