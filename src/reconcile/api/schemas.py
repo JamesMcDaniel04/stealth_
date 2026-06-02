@@ -37,6 +37,17 @@ class SplitRequest(BaseModel):
     evidence: dict = Field(default_factory=dict)
 
 
+class RetractRequest(BaseModel):
+    a: str
+    b: str
+
+
+class IngestTextRequest(BaseModel):
+    name: str
+    text: str
+    group_id: str = "reconcile"
+
+
 class ClusterOut(BaseModel):
     cluster_id: str
     members: list[str]

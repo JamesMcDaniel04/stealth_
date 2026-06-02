@@ -119,6 +119,15 @@ class MetaRow(Base):
     value: Mapped[str] = mapped_column(String, default="")
 
 
+class EmbeddingRow(Base):
+    """Persistent embedding cache: sha256(model_id + text) -> JSON vector."""
+
+    __tablename__ = "embeddings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    vector: Mapped[list] = mapped_column(JSON, default=list)
+
+
 _engine = None
 _Session = None
 

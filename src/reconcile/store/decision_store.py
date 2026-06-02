@@ -6,6 +6,7 @@ replay can run without ever reading the graph.
 
 from __future__ import annotations
 
+import numpy as np
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from reconcile.store.db import (
     ClusterRow,
     ConstraintRow,
     DecisionRow,
+    EmbeddingRow,
     EventRow,
     MentionRow,
     MetaRow,
@@ -115,6 +117,50 @@ class DecisionStore:
                 )
                 for r in rows
             ]
+
+    def deactivate_constraints(
+        self, a: str, b: str, kind: ConstraintKind | None = None
+    ) -> int:
+        """Soft-delete active constraints on the pair {a,b}. Returns the count affected.
+
+        Order-independent on (a, b). Used for undo/retraction and for
+        latest-human-decision-wins (deactivate the opposing constraint first).
+        """
+        pair = {a, b}
+        n = 0
+        with self.session() as s:
+            rows = s.scalars(
+                select(ConstraintRow)
+                .where(ConstraintRow.active.is_(True))
+                .where(ConstraintRow.a.in_(list(pair)))
+                .where(ConstraintRow.b.in_(list(pair)))
+            ).all()
+            for r in rows:
+                if {r.a, r.b} != pair:
+                    continue
+                if kind is not None and r.kind != kind.value:
+                    continue
+                r.active = False
+                n += 1
+            s.commit()
+        return n
+
+    # ---- embedding cache ---------------------------------------------------
+    def get_embedding(self, key: str) -> np.ndarray | None:
+        with self.session() as s:
+            row = s.get(EmbeddingRow, key)
+            if row is None or not row.vector:
+                return None
+            return np.array(row.vector, dtype=np.float64)
+
+    def put_embedding(self, key: str, vector: np.ndarray) -> None:
+        with self.session() as s:
+            row = s.get(EmbeddingRow, key)
+            if row is None:
+                s.add(EmbeddingRow(key=key, vector=[float(x) for x in vector]))
+            else:
+                row.vector = [float(x) for x in vector]
+            s.commit()
 
     # ---- decisions / review queue -----------------------------------------
     def record_decision(self, d: PairDecision) -> None:

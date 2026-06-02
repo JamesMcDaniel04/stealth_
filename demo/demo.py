@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 
 from reconcile.dataset import load_episode
-from reconcile.embeddings import StubEmbedder
+from reconcile.embeddings import make_embedder
 from reconcile.graph import StubGraphStore
 from reconcile.models import DecisionSource
 from reconcile.ops import Engine
@@ -61,8 +61,9 @@ def main() -> int:
     DEMO_DB.unlink(missing_ok=True)
     store = DecisionStore(url=f"sqlite:///{DEMO_DB}", create=True)
     graph, graph_kind = _make_graph_store()
-    engine = Engine(store=store, graph=graph, embedder=StubEmbedder())
-    print(f"graph store: {graph_kind}")
+    embedder = make_embedder()
+    engine = Engine(store=store, graph=graph, embedder=embedder)
+    print(f"graph store: {graph_kind}   embedder: {embedder.model_id}")
 
     m1, r1 = load_episode(DATASET, "episode_1")
 
@@ -70,7 +71,7 @@ def main() -> int:
     _rule("ACT 1 — collective resolution keeps look-alikes apart")
     engine.ingest(m1, r1)
 
-    ctx = FeatureContext.build(m1, r1, embedder=StubEmbedder())
+    ctx = FeatureContext.build(m1, r1, embedder=embedder)
     f = ctx.features("acme-inc", "acme-corp")
     emb = embedding_only_prob(f.embedding_cosine)
     print("  'Acme Inc' vs 'Acme Corp':")

@@ -52,5 +52,23 @@ def test_full_api_flow(client):
     members = {frozenset(c["members"]) for c in again["clusters"]}
     assert frozenset({"m1"}) in members and frozenset({"m2"}) in members
 
+    # retract the split -> they re-merge
+    retracted = client.post("/retract", json={"a": "m1", "b": "m2"}).json()
+    members = {frozenset(c["members"]) for c in retracted["clusters"]}
+    assert frozenset({"m1", "m2"}) in members
+
     events = client.get("/events").json()
     assert any(e["kind"] == "split" for e in events)
+
+
+def test_api_auth_enforced_when_token_set(client, monkeypatch):
+    from reconcile.config import get_settings
+
+    get_settings().reconcile_api_token = "secret"
+    try:
+        assert client.post("/resolve").status_code == 401
+        ok = client.post("/resolve", headers={"Authorization": "Bearer secret"})
+        assert ok.status_code == 200
+        assert client.get("/health").status_code == 200  # health stays open
+    finally:
+        get_settings().reconcile_api_token = ""

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from reconcile.config import get_settings
-from reconcile.embeddings import Embedder, default_embedder
+from reconcile.embeddings import CachedEmbedder, Embedder, make_embedder
 from reconcile.graph.base import GraphStore
 from reconcile.graph.reconciler import Reconciler
 from reconcile.models import (
@@ -50,7 +50,9 @@ class Engine:
     ):
         self.store = store
         self.graph = graph
-        self.embedder = embedder or default_embedder()
+        # Default: real embedder when a key is configured (else stub), behind a
+        # persistent cache so each distinct name is embedded once. Tests inject a stub.
+        self.embedder = embedder or CachedEmbedder(make_embedder(), store)
         self.scorer = WeightedRuleScorer()
         self.merge_threshold = merge_threshold
         self.reconciler = Reconciler(graph)
@@ -99,18 +101,20 @@ class Engine:
         evidence: dict | None = None,
     ) -> ResolveResult:
         """Declare a and b distinct (cannot-link) and re-project. Reversible & durable."""
-        self.store.add_constraint(
-            ConstraintRecord(
-                kind=ConstraintKind.CANNOT_LINK,
-                a=a,
-                b=b,
-                source=source,
-                confidence=1.0,
-                evidence=evidence or {},
-            )
-        )
-        self.store.mark_review_resolved(a, b)
+        return self._decide(a, b, ConstraintKind.CANNOT_LINK, source, evidence)
+
+    def retract(self, a: str, b: str) -> ResolveResult:
+        """Undo: deactivate any constraint on {a,b} and re-resolve.
+
+        A retracted split lets the pair re-merge if the scorer now wants to; a
+        retracted merge lets it re-separate. True two-way reversibility.
+        """
+        self.store.deactivate_constraints(a, b)
         return self.resolve()
+
+    # human-readable alias for retracting a split specifically
+    def undo_split(self, a: str, b: str) -> ResolveResult:
+        return self.retract(a, b)
 
     # ---- human review decision --------------------------------------------
     def submit_decision(
@@ -122,8 +126,24 @@ class Engine:
         evidence: dict | None = None,
     ) -> ResolveResult:
         kind = ConstraintKind.MUST_LINK if same else ConstraintKind.CANNOT_LINK
+        return self._decide(a, b, kind, source, evidence)
+
+    def _decide(
+        self,
+        a: str,
+        b: str,
+        kind: ConstraintKind,
+        source: DecisionSource,
+        evidence: dict | None,
+    ) -> ResolveResult:
+        """Record a constraint, enforcing latest-human-decision-wins, then re-resolve."""
+        # The newest human decision supersedes any prior constraint on the pair, so a
+        # must/cannot flip is well-defined and never deadlocks.
+        if source is DecisionSource.HUMAN:
+            self.store.deactivate_constraints(a, b)
         self.store.add_constraint(
-            ConstraintRecord(kind=kind, a=a, b=b, source=source, evidence=evidence or {})
+            ConstraintRecord(kind=kind, a=a, b=b, source=source, confidence=1.0,
+                             evidence=evidence or {})
         )
         self.store.mark_review_resolved(a, b)
         return self.resolve()

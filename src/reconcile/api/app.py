@@ -1,32 +1,37 @@
-"""FastAPI app exposing the resolution lifecycle.
+"""FastAPI service exposing the resolution lifecycle.
 
-Endpoints (these back the future review-queue UI; no UI is shipped this pass):
+Endpoints:
   POST /ingest          add candidate mentions + relationships
+  POST /ingest-text     extract free text via Graphiti (Claude) then ingest (needs keys)
   POST /resolve         run collective resolution (replays constraints)
   GET  /review-queue    ambiguous pairs awaiting a human decision
-  POST /decisions       human merge/split decision from the queue
+  POST /decisions       human merge/split decision (latest-human-decision-wins)
   POST /split           reversible split of two mentions
+  POST /retract         undo a split/decision (re-resolve without the constraint)
   GET  /clusters        current resolved clusters
   GET  /events          change-event log (splits / merges)
+
+Auth: when RECONCILE_API_TOKEN is set, every endpoint except /health requires
+`Authorization: Bearer <token>`. Unset = open (local dev).
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 from reconcile.api.schemas import (
     ClusterOut,
     DecisionRequest,
     EventOut,
     IngestRequest,
+    IngestTextRequest,
     ResolveResponse,
+    RetractRequest,
     ReviewItem,
     SplitRequest,
 )
 from reconcile.config import get_settings
-from reconcile.embeddings import default_embedder
-from reconcile.graph.base import GraphStore
-from reconcile.graph.stub_store import StubGraphStore
+from reconcile.graph import make_graph_store
 from reconcile.models import Mention, Relationship
 from reconcile.ops import Engine, ResolveResult
 from reconcile.store import DecisionStore
@@ -34,22 +39,24 @@ from reconcile.store import DecisionStore
 _engine: Engine | None = None
 
 
-def _make_graph_store() -> GraphStore:
-    try:
-        from reconcile.graph.neo4j_store import Neo4jStore
-
-        return Neo4jStore()
-    except Exception:  # noqa: BLE001 — fall back so the API is usable without Neo4j
-        return StubGraphStore()
-
-
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
         create = get_settings().database_url.startswith("sqlite")
         store = DecisionStore(create=create)
-        _engine = Engine(store=store, graph=_make_graph_store(), embedder=default_embedder())
+        graph, _ = make_graph_store("auto")
+        _engine = Engine(store=store, graph=graph)
     return _engine
+
+
+def require_auth(authorization: str = Header(default="")) -> None:
+    """Enforce a bearer token only when RECONCILE_API_TOKEN is configured."""
+    token = get_settings().reconcile_api_token
+    if not token:
+        return
+    expected = f"Bearer {token}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="invalid or missing bearer token")
 
 
 def _to_resolve_response(result: ResolveResult) -> ResolveResponse:
@@ -65,12 +72,13 @@ def _to_resolve_response(result: ResolveResult) -> ResolveResponse:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="reconcile", version="0.1.0")
+    auth = [Depends(require_auth)]
 
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok"}
 
-    @app.post("/ingest")
+    @app.post("/ingest", dependencies=auth)
     def ingest(req: IngestRequest) -> dict:
         engine = get_engine()
         mentions = [
@@ -82,35 +90,45 @@ def create_app() -> FastAPI:
         engine.ingest(mentions, rels)
         return {"ingested_mentions": len(mentions), "ingested_relationships": len(rels)}
 
-    @app.post("/resolve", response_model=ResolveResponse)
+    @app.post("/ingest-text", dependencies=auth)
+    async def ingest_text(req: IngestTextRequest) -> ResolveResponse:
+        from reconcile.graph.graphiti_ingest import ingest_text as _ingest_text
+
+        result = await _ingest_text(get_engine(), req.name, req.text, req.group_id)
+        return _to_resolve_response(result)
+
+    @app.post("/resolve", dependencies=auth)
     def resolve() -> ResolveResponse:
         return _to_resolve_response(get_engine().resolve())
 
-    @app.get("/review-queue", response_model=list[ReviewItem])
+    @app.get("/review-queue", dependencies=auth)
     def review_queue() -> list[ReviewItem]:
         return [
             ReviewItem(a=d.a, b=d.b, score=d.score, evidence=d.evidence)
             for d in get_engine().review_queue()
         ]
 
-    @app.post("/decisions", response_model=ResolveResponse)
+    @app.post("/decisions", dependencies=auth)
     def submit_decision(req: DecisionRequest) -> ResolveResponse:
         result = get_engine().submit_decision(req.a, req.b, same=req.same, evidence=req.evidence)
         return _to_resolve_response(result)
 
-    @app.post("/split", response_model=ResolveResponse)
+    @app.post("/split", dependencies=auth)
     def split(req: SplitRequest) -> ResolveResponse:
-        result = get_engine().split(req.a, req.b, evidence=req.evidence)
-        return _to_resolve_response(result)
+        return _to_resolve_response(get_engine().split(req.a, req.b, evidence=req.evidence))
 
-    @app.get("/clusters", response_model=list[ClusterOut])
+    @app.post("/retract", dependencies=auth)
+    def retract(req: RetractRequest) -> ResolveResponse:
+        return _to_resolve_response(get_engine().retract(req.a, req.b))
+
+    @app.get("/clusters", dependencies=auth)
     def clusters() -> list[ClusterOut]:
         return [
             ClusterOut(cluster_id=c.cluster_id, members=sorted(c.members))
             for c in get_engine().clusters()
         ]
 
-    @app.get("/events", response_model=list[EventOut])
+    @app.get("/events", dependencies=auth)
     def events() -> list[EventOut]:
         return [
             EventOut(kind=e.kind.value, old_ids=e.old_ids, new_ids=e.new_ids)

@@ -1,0 +1,15 @@
+{
+  "_comment": "Recorded shape of a Graphiti AddEpisodeResults from two CRM episodes mentioning the same company two ways. Lets us test mapping + resolution on LLM-extracted data with no live key.",
+  "nodes": [
+    {"uuid": "n-acme-1", "name": "Acme Corporation", "labels": ["Entity", "Organization"], "attributes": {"industry": "manufacturing"}, "summary": "A manufacturing company.", "group_id": "ep1"},
+    {"uuid": "n-acme-2", "name": "Acme", "labels": ["Entity", "Organization"], "attributes": {}, "summary": "Company employing Jane Doe.", "group_id": "ep2"},
+    {"uuid": "n-jane", "name": "Jane Doe", "labels": ["Entity", "Person"], "attributes": {}, "summary": "An employee.", "group_id": "ep1"},
+    {"uuid": "n-globex", "name": "Globex", "labels": ["Entity", "Organization"], "attributes": {}, "summary": "A different company.", "group_id": "ep1"},
+    {"uuid": "n-bob", "name": "Bob Stone", "labels": ["Entity", "Person"], "attributes": {}, "summary": "A Globex employee.", "group_id": "ep1"}
+  ],
+  "edges": [
+    {"source_node_uuid": "n-acme-1", "target_node_uuid": "n-jane", "name": "EMPLOYS"},
+    {"source_node_uuid": "n-acme-2", "target_node_uuid": "n-jane", "name": "EMPLOYS"},
+    {"source_node_uuid": "n-globex", "target_node_uuid": "n-bob", "name": "EMPLOYS"}
+  ]
+}
