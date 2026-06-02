@@ -21,11 +21,11 @@ def test_human_split_persists_through_reingestion(store):
 
     # Two identical "Acme" mentions — the resolver merges them by default.
     engine.ingest([_acme("m1"), _acme("m2")], [])
-    result = engine.resolve()
+    engine.resolve()
     assert engine.same_cluster("m1", "m2"), "identical mentions should auto-merge first"
 
     # A human reviews the evidence and declares them distinct: this is a SPLIT.
-    engine.split("m1", "m2", source=DecisionSource.HUMAN, evidence={"reason": "different legal entity"})
+    engine.split("m1", "m2", source=DecisionSource.HUMAN, evidence={"reason": "distinct entity"})
     assert not engine.same_cluster("m1", "m2"), "split should separate them immediately"
 
     # New extraction arrives: a third identical "Acme" that strongly matches both.

@@ -12,7 +12,7 @@ Requires OPENAI_API_KEY and a running Neo4j.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from reconcile.config import get_settings
 from reconcile.models import Mention, Relationship
@@ -44,11 +44,13 @@ class GraphitiIngest:
             episode_body=text,
             source=EpisodeType.text,
             source_description="reconcile ingest",
-            reference_time=datetime.now(timezone.utc),
+            reference_time=datetime.now(UTC),
             group_id=group_id,
         )
 
-    async def harvest(self, group_id: str = "reconcile") -> tuple[list[Mention], list[Relationship]]:
+    async def harvest(
+        self, group_id: str = "reconcile"
+    ) -> tuple[list[Mention], list[Relationship]]:
         """Read Graphiti's extracted entities/edges into our Mention/Relationship model."""
         driver = self._graphiti.driver
         async with driver.session() as sess:

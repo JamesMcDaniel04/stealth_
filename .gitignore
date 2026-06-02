@@ -2,3 +2,16 @@
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local config & data
+.env
+*.db
+demo/_demo.db

@@ -40,7 +40,9 @@ def test_full_api_flow(client):
     members = {frozenset(c["members"]) for c in resolved["clusters"]}
     assert frozenset({"m1", "m2"}) in members  # auto-merged
 
-    split = client.post("/split", json={"a": "m1", "b": "m2", "evidence": {"reason": "distinct"}}).json()
+    split = client.post(
+        "/split", json={"a": "m1", "b": "m2", "evidence": {"reason": "distinct"}}
+    ).json()
     members = {frozenset(c["members"]) for c in split["clusters"]}
     assert frozenset({"m1"}) in members and frozenset({"m2"}) in members
     assert any(e["kind"] == "split" for e in split["events"])

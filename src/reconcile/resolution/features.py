@@ -67,7 +67,7 @@ class FeatureContext:
         mentions: list[Mention],
         relationships: list[Relationship],
         embedder: Embedder | None = None,
-    ) -> "FeatureContext":
+    ) -> FeatureContext:
         ctx = cls(
             mentions={m.id: m for m in mentions},
             embedder=embedder or default_embedder(),

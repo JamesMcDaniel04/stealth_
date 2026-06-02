@@ -7,24 +7,24 @@ constraints and are what make a split survive re-ingestion (constraint replay).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class ConstraintKind(str, Enum):
+class ConstraintKind(StrEnum):
     MUST_LINK = "must_link"
     CANNOT_LINK = "cannot_link"
 
 
-class DecisionSource(str, Enum):
+class DecisionSource(StrEnum):
     MACHINE = "machine"
     HUMAN = "human"
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ConstraintRecord(BaseModel):

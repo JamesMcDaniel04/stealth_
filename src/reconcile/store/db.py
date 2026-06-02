@@ -8,7 +8,7 @@ offline eval/tests via the default DATABASE_URL.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -28,7 +28,7 @@ class Base(DeclarativeBase):
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class MentionRow(Base):
@@ -86,7 +86,7 @@ class ClusterRow(Base):
     retired: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    members: Mapped[list["ClusterMemberRow"]] = relationship(
+    members: Mapped[list[ClusterMemberRow]] = relationship(
         back_populates="cluster", cascade="all, delete-orphan"
     )
 

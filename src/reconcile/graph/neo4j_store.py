@@ -12,6 +12,8 @@ touches the underlying extracted graph — it just rewires the projection.
 
 from __future__ import annotations
 
+import json
+
 from reconcile.config import get_settings
 from reconcile.models import Cluster, Mention, Relationship
 
@@ -42,8 +44,8 @@ class Neo4jStore:
     # --- input ------------------------------------------------------------
     def upsert_entities(self, mentions: list[Mention]) -> None:
         rows = [
-            {"id": m.id, "name": m.name, "type": m.entity_type, "attrs": dict(m.attributes),
-             "source": m.source}
+            {"id": m.id, "name": m.name, "type": m.entity_type,
+             "attrs": json.dumps(dict(m.attributes)), "source": m.source}
             for m in mentions
         ]
         with self._driver.session() as sess:
@@ -76,7 +78,7 @@ class Neo4jStore:
             return [
                 Mention(
                     id=r["id"], name=r["name"], entity_type=r["type"] or "Entity",
-                    attributes={k: str(v) for k, v in (r["attrs"] or {}).items()},
+                    attributes=json.loads(r["attrs"]) if r["attrs"] else {},
                     source=r["source"] or "",
                 )
                 for r in res
@@ -93,7 +95,8 @@ class Neo4jStore:
         self, clusters: list[Cluster], resolved_edges: set[tuple[str, str, str]]
     ) -> None:
         cluster_rows = [
-            {"cid": c.cluster_id, "members": sorted(c.members), "attrs": dict(c.attributes)}
+            {"cid": c.cluster_id, "members": sorted(c.members),
+             "attrs": json.dumps(dict(c.attributes))}
             for c in clusters
         ]
         edge_rows = [{"a": a, "kind": k, "b": b} for (a, k, b) in resolved_edges]

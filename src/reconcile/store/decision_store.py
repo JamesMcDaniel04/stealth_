@@ -162,8 +162,9 @@ class DecisionStore:
 
     def mark_review_resolved(self, a: str, b: str) -> None:
         with self.session() as s:
+            pair = [a, b]
             for r in s.scalars(
-                select(DecisionRow).where(DecisionRow.a.in_([a, b])).where(DecisionRow.b.in_([a, b]))
+                select(DecisionRow).where(DecisionRow.a.in_(pair)).where(DecisionRow.b.in_(pair))
             ).all():
                 r.resolved = True
             s.commit()
@@ -189,7 +190,9 @@ class DecisionStore:
             out = []
             for r in rows:
                 members = {m.mention_id for m in r.members}
-                out.append(Cluster(cluster_id=r.id, members=members, attributes=dict(r.attributes or {})))
+                out.append(
+                    Cluster(cluster_id=r.id, members=members, attributes=dict(r.attributes or {}))
+                )
             return out
 
     # ---- change events -----------------------------------------------------

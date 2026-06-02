@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class Band(str, Enum):
+class Band(StrEnum):
     AUTO_MERGE = "auto_merge"
     REVIEW = "review"
     AUTO_REJECT = "auto_reject"
@@ -27,13 +27,13 @@ class PairDecision(BaseModel):
         return tuple(sorted((self.a, self.b)))  # type: ignore[return-value]
 
 
-class EventKind(str, Enum):
+class EventKind(StrEnum):
     MERGE = "merge"
     SPLIT = "split"
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ChangeEvent(BaseModel):

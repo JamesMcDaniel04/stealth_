@@ -73,10 +73,10 @@ def main() -> int:
     ctx = FeatureContext.build(m1, r1, embedder=StubEmbedder())
     f = ctx.features("acme-inc", "acme-corp")
     emb = embedding_only_prob(f.embedding_cosine)
-    print(f"  'Acme Inc' vs 'Acme Corp':")
+    print("  'Acme Inc' vs 'Acme Corp':")
     print(f"    name similarity        : {f.name_sim:.2f}  (looks like the same company)")
     print(f"    embedding-only p(same) : {emb:.2f}  -> a string/embedding deduper MERGES them")
-    print(f"    anchor conflict        : {f.anchor_conflict:.0f}    (different domain + Salesforce id)")
+    print(f"    anchor conflict        : {f.anchor_conflict:.0f}    (diff domain + Salesforce id)")
     print(f"    shared neighbors       : {f.raw_shared_neighbors}    (disjoint relationships)")
 
     engine.resolve()

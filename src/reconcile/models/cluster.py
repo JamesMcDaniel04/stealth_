@@ -14,5 +14,5 @@ class Cluster(BaseModel):
     members: set[str] = Field(default_factory=set)
     attributes: dict[str, str] = Field(default_factory=dict)
 
-    def with_members(self, members: set[str]) -> "Cluster":
+    def with_members(self, members: set[str]) -> Cluster:
         return Cluster(cluster_id=self.cluster_id, members=set(members), attributes=self.attributes)

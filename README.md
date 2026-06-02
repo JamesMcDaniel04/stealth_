@@ -49,7 +49,19 @@ make demo           # the defining end-to-end demo
 ```
 
 `make test` and `make eval` run fully offline (SQLite + a deterministic stub embedder).
-Only `make up` / `make demo` need Docker and an `OPENAI_API_KEY` (copy `.env.example` → `.env`).
+`make up` / `make demo` need Docker (copy `.env.example` → `.env`). Postgres is published
+on host port **5433** (to avoid clashing with a local Postgres on 5432); Neo4j is on 7687.
+An `OPENAI_API_KEY` is only required for live LLM extraction via the Graphiti bridge — the
+deterministic demo and tests don't need it.
+
+### Verification status
+
+- **19 unit/moat tests** pass with no Docker (`make test`), including `test_replay.py` —
+  a human split survives re-ingestion via constraint replay.
+- **Phase 1 gate**: collective F1 **+0.37** over the embedding-only baseline on the hard
+  cases (`make eval`).
+- **Phase 2 gate**: the three-act demo passes end-to-end against **live Neo4j**, and a live
+  projection round-trip is covered by `pytest -m integration`.
 
 ## The defining demo (`make demo`)
 
