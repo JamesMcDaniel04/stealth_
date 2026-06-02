@@ -18,7 +18,9 @@ import httpx
 
 
 class ReconcileClient:
-    def __init__(self, base_url: str = "http://localhost:8000", token: str = "", timeout: float = 30):
+    def __init__(
+        self, base_url: str = "http://localhost:8000", token: str = "", timeout: float = 30
+    ):
         self._base = base_url.rstrip("/")
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         self._http = httpx.Client(base_url=self._base, headers=headers, timeout=timeout)
@@ -39,7 +41,8 @@ class ReconcileClient:
     def ingest(
         self, mentions: list[dict] | None = None, relationships: list[dict] | None = None
     ) -> dict:
-        return self._post("/ingest", {"mentions": mentions or [], "relationships": relationships or []})
+        payload = {"mentions": mentions or [], "relationships": relationships or []}
+        return self._post("/ingest", payload)
 
     def ingest_text(self, name: str, text: str) -> dict:
         return self._post("/ingest-text", {"name": name, "text": text})

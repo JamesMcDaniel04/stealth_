@@ -22,6 +22,13 @@ demo:             ## Run the defining end-to-end demo (needs `make up`)
 serve:            ## Run the API (uvicorn)
 	uv run uvicorn reconcile.api.app:app --reload --port 8000
 
+openapi:          ## Dump the OpenAPI spec to openapi.json
+	uv run python -c "import json; from reconcile.api.app import app; open('openapi.json','w').write(json.dumps(app.openapi(), indent=2))"
+	@echo "wrote openapi.json"
+
+quickstart:       ## Run the SDK quickstart example (no Docker)
+	uv run python examples/quickstart.py
+
 eval:             ## Phase 1 gate: collective vs embedding-only on hard cases (no Docker needed)
 	uv run python -m eval.run_eval
 

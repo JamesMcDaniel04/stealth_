@@ -50,7 +50,8 @@ def _to_mention(m: MentionLike) -> Mention:
 def _to_relationship(r: RelationshipLike) -> Relationship:
     if isinstance(r, Relationship):
         return r
-    return Relationship(src=r["src"], dst=r["dst"], edge_type=r.get("type", r.get("edge_type", "RELATES_TO")))
+    edge_type = r.get("type", r.get("edge_type", "RELATES_TO"))
+    return Relationship(src=r["src"], dst=r["dst"], edge_type=edge_type)
 
 
 class Reconciler:
@@ -66,7 +67,7 @@ class Reconciler:
         self.engine = Engine(store=self.store, graph=self.graph, embedder=embedder)
 
     @classmethod
-    def local(cls, database_url: str = "sqlite:///./reconcile.db") -> "Reconciler":
+    def local(cls, database_url: str = "sqlite:///./reconcile.db") -> Reconciler:
         """Zero-dependency local instance: SQLite + in-memory graph + stub embedder."""
         from reconcile.embeddings import StubEmbedder
 

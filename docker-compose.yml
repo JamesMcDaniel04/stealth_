@@ -34,6 +34,27 @@ services:
       timeout: 5s
       retries: 30
 
+  # The reconcile API service. Start with: docker-compose --profile api up -d
+  api:
+    build: .
+    container_name: reconcile-api
+    profiles: ["api"]
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+psycopg://reconcile:reconcile-dev@postgres:5432/reconcile"
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: "neo4j"
+      NEO4J_PASSWORD: "reconcile-dev"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      RECONCILE_API_TOKEN: "${RECONCILE_API_TOKEN:-}"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
 volumes:
   neo4j_data:
   pg_data:

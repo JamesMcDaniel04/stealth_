@@ -40,8 +40,8 @@ def map_results(results: Any) -> tuple[list[Mention], list[Relationship]]:
         entity_type = next((label for label in labels if label != "Entity"), "Entity")
         mentions.append(
             Mention(
-                id=getattr(node, "uuid"),
-                name=getattr(node, "name"),
+                id=node.uuid,
+                name=node.name,
                 entity_type=entity_type,
                 attributes=_stringify_attrs(
                     getattr(node, "attributes", None), getattr(node, "summary", None)
@@ -54,8 +54,8 @@ def map_results(results: Any) -> tuple[list[Mention], list[Relationship]]:
     for edge in getattr(results, "edges", []):
         relationships.append(
             Relationship(
-                src=getattr(edge, "source_node_uuid"),
-                dst=getattr(edge, "target_node_uuid"),
+                src=edge.source_node_uuid,
+                dst=edge.target_node_uuid,
                 edge_type=getattr(edge, "name", None) or "RELATES_TO",
             )
         )
@@ -85,7 +85,8 @@ class GraphitiIngest:
         if not s.openai_api_key:
             raise RuntimeError("GraphitiIngest needs OPENAI_API_KEY for Graphiti's embeddings.")
 
-        llm = AnthropicClient(config=LLMConfig(api_key=s.anthropic_api_key, model=s.anthropic_model))
+        llm_config = LLMConfig(api_key=s.anthropic_api_key, model=s.anthropic_model)
+        llm = AnthropicClient(config=llm_config)
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(api_key=s.openai_api_key, embedding_model=s.embedding_model)
         )
