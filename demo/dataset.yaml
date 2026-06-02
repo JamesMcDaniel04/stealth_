@@ -1,0 +1,30 @@
+# The defining-demo dataset. Two episodes (ingestions) of a CRM/sales graph.
+#
+# The hard case: "Acme Inc" and "Acme Corp" look near-identical by name/embedding
+# but are two different companies (different domains, different Salesforce IDs,
+# disjoint relationship neighborhoods). Episode 2 is a later extraction that
+# re-mentions Acme — used to prove a human split survives re-ingestion.
+
+episode_1:
+  mentions:
+    - {id: acme-inc,  name: "Acme Inc",  type: Company, attributes: {domain: "acme.com",     external_id: "SF-001"}}
+    - {id: acme-corp, name: "Acme Corp", type: Company, attributes: {domain: "acme-corp.io", external_id: "SF-002"}}
+    - {id: jane,      name: "Jane Doe",      type: Person}
+    - {id: bob,       name: "Bob Stone",     type: Person}
+    - {id: opp-alpha, name: "Project Alpha", type: Opportunity}
+    - {id: opp-beta,  name: "Project Beta",  type: Opportunity}
+  relationships:
+    - {src: acme-inc,  dst: jane,      type: EMPLOYS}
+    - {src: acme-inc,  dst: opp-alpha, type: HAS_OPPORTUNITY}
+    - {src: acme-corp, dst: bob,       type: EMPLOYS}
+    - {src: acme-corp, dst: opp-beta,  type: HAS_OPPORTUNITY}
+
+episode_2:
+  # A later extraction mentions "Acme" again — clearly the same record as Acme Inc
+  # (same domain + Salesforce id). It must merge with Acme Inc WITHOUT dragging
+  # Acme Corp back in across the human split.
+  mentions:
+    - {id: acme-inc-2, name: "Acme",      type: Company, attributes: {domain: "acme.com", external_id: "SF-001"}}
+    - {id: carol,      name: "Carol Reed", type: Person}
+  relationships:
+    - {src: acme-inc-2, dst: carol, type: EMPLOYS}

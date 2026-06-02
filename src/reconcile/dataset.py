@@ -32,6 +32,34 @@ class Dataset:
     pairs: list[LabeledPair] = field(default_factory=list)
 
 
+def _mentions_from(rows: list[dict]) -> list[Mention]:
+    return [
+        Mention(
+            id=m["id"],
+            name=m["name"],
+            entity_type=m.get("type", "Entity"),
+            attributes={k: str(v) for k, v in (m.get("attributes") or {}).items()},
+            source=m.get("source", ""),
+        )
+        for m in rows
+    ]
+
+
+def _relationships_from(rows: list[dict]) -> list[Relationship]:
+    return [
+        Relationship(src=r["src"], dst=r["dst"], edge_type=r.get("type", "RELATES_TO"))
+        for r in rows
+    ]
+
+
+def load_episode(path: str | Path, key: str) -> tuple[list[Mention], list[Relationship]]:
+    """Load one named episode (`mentions` + `relationships`) from a multi-episode file."""
+    section = yaml.safe_load(Path(path).read_text())[key]
+    return _mentions_from(section.get("mentions", [])), _relationships_from(
+        section.get("relationships", [])
+    )
+
+
 def load_dataset(path: str | Path) -> Dataset:
     data = yaml.safe_load(Path(path).read_text())
     mentions = [

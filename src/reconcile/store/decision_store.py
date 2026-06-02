@@ -148,6 +148,18 @@ class DecisionStore:
                 for r in rows
             ]
 
+    def clear_unresolved_reviews(self) -> None:
+        """Drop unresolved REVIEW rows so the queue reflects the latest resolution run."""
+        from reconcile.models import Band
+
+        with self.session() as s:
+            s.execute(
+                delete(DecisionRow)
+                .where(DecisionRow.band == Band.REVIEW.value)
+                .where(DecisionRow.resolved.is_(False))
+            )
+            s.commit()
+
     def mark_review_resolved(self, a: str, b: str) -> None:
         with self.session() as s:
             for r in s.scalars(

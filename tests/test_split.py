@@ -8,22 +8,24 @@ from reconcile.ops import Engine
 
 
 def _setup_over_merged(store):
-    """x and y are truly the same; z gets wrongly merged in by a shared name/anchor."""
-    engine = Engine(store=store, graph=StubGraphStore(), embedder=__import__(
-        "reconcile.embeddings", fromlist=["StubEmbedder"]).StubEmbedder())
+    """x and y are truly the same (shared domain + shared office, so they bind hardest);
+    z is wrongly pulled in by the identical name alone and is the weak outlier."""
+    from reconcile.embeddings import StubEmbedder
+
+    engine = Engine(store=store, graph=StubGraphStore(), embedder=StubEmbedder())
     mentions = [
         Mention(id="x", name="Globex", entity_type="Company", attributes={"domain": "globex.com"}),
         Mention(id="y", name="Globex", entity_type="Company", attributes={"domain": "globex.com"}),
-        Mention(id="z", name="Globex", entity_type="Company", attributes={"domain": "globex.com"}),
+        Mention(id="z", name="Globex", entity_type="Company"),  # no anchor: weakly attached
+        Mention(id="loc-bos", name="Boston HQ", entity_type="Location"),
+        Mention(id="loc-den", name="Denver Site", entity_type="Location"),
     ]
     rels = [
-        Relationship(src="x", dst="n-east", edge_type="LOCATED_IN"),
-        Relationship(src="z", dst="n-west", edge_type="LOCATED_IN"),
+        Relationship(src="x", dst="loc-bos", edge_type="LOCATED_IN"),
+        Relationship(src="y", dst="loc-bos", edge_type="LOCATED_IN"),
+        Relationship(src="z", dst="loc-den", edge_type="LOCATED_IN"),
     ]
-    engine.ingest(mentions + [
-        Mention(id="n-east", name="East Office", entity_type="Location"),
-        Mention(id="n-west", name="West Office", entity_type="Location"),
-    ], rels)
+    engine.ingest(mentions, rels)
     engine.resolve()
     return engine
 
@@ -56,8 +58,8 @@ def test_split_reattaches_edges_to_correct_cluster(store):
     edges = engine.graph.resolved_relationships()
     cx, cz = engine.cluster_id_of("x"), engine.cluster_id_of("z")
 
-    # z's western office edge now hangs off z's cluster, not x's
-    assert (cz, "LOCATED_IN", engine.cluster_id_of("n-west")) in edges
-    assert (cx, "LOCATED_IN", engine.cluster_id_of("n-east")) in edges
+    # z's Denver edge now hangs off z's cluster, not x's
+    assert (cz, "LOCATED_IN", engine.cluster_id_of("loc-den")) in edges
+    assert (cx, "LOCATED_IN", engine.cluster_id_of("loc-bos")) in edges
     # membership reflects the split
     assert "z" in proj[cz] and "z" not in proj[cx]
