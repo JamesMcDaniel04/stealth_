@@ -56,12 +56,63 @@ deterministic demo and tests don't need it.
 
 ### Verification status
 
-- **19 unit/moat tests** pass with no Docker (`make test`), including `test_replay.py` —
-  a human split survives re-ingestion via constraint replay.
-- **Phase 1 gate**: collective F1 **+0.37** over the embedding-only baseline on the hard
-  cases (`make eval`).
-- **Phase 2 gate**: the three-act demo passes end-to-end against **live Neo4j**, and a live
-  projection round-trip is covered by `pytest -m integration`.
+- **30 unit/moat tests** pass with no Docker (`make test`), including `test_replay.py`
+  (a human split survives re-ingestion), `test_retract.py` (undo / latest-decision-wins),
+  `test_graphiti_mapping.py` (LLM-extraction mapping via a recorded fixture), and
+  `test_sdk.py` / `test_api.py` (SDK + service + auth).
+- **Phase 1 gate**: collective F1 **+0.37** over the embedding-only baseline (`make eval`).
+- **Real-data validation** (Phase 7, `make real-eval`): on a real People.ai CRM relationship
+  graph, relational resolution beats embedding/name by **+0.50 F1** — links acronym/variant
+  company names to the right account via shared contacts (6/6 vs 1/6) and keeps same-name/
+  different-company people apart (10/10 vs 0/10). See [eval/RESULTS.md](eval/RESULTS.md) for the
+  full writeup and honest caveats.
+- **Live**: the three-act demo passes against **live Neo4j**; `pytest -m integration` covers a
+  live Neo4j projection round-trip and (with keys) a live Claude-extraction smoke test.
+
+## Use it: SDK or service
+
+**In-process SDK** (`from reconcile import Reconciler`):
+
+```python
+from reconcile import Reconciler
+
+rec = Reconciler.local()                      # sqlite + in-memory graph, zero deps
+rec.ingest(mentions=[
+    {"id": "acme-inc",  "name": "Acme Inc",  "type": "Company",
+     "attributes": {"domain": "acme.com",     "external_id": "SF-001"}},
+    {"id": "acme-corp", "name": "Acme Corp", "type": "Company",
+     "attributes": {"domain": "acme-corp.io", "external_id": "SF-002"}},
+])
+rec.resolve()
+rec.same_cluster("acme-inc", "acme-corp")     # False — kept apart by relationships
+rec.split("acme-inc", "acme-corp")            # reversible split (persists)
+rec.retract("acme-inc", "acme-corp")          # undo — true two-way reversibility
+```
+
+`Reconciler()` (no args) reads Postgres/Neo4j/OpenAI from the environment. Run the full
+example with `make quickstart` (or `uv run python examples/quickstart.py`).
+
+**HTTP service** (`make serve`, or `docker-compose --profile api up`):
+
+```bash
+make serve                                    # uvicorn on :8000 (OpenAPI at /docs)
+uv run python examples/http_client.py         # drive it with the Python HTTP client
+```
+
+Endpoints: `/ingest`, `/ingest-text` (free-text → Claude extraction), `/resolve`,
+`/review-queue`, `/decisions`, `/split`, `/retract`, `/clusters`, `/events`. Set
+`RECONCILE_API_TOKEN` to require `Authorization: Bearer <token>` on every call except
+`/health`. Dump the spec with `make openapi`.
+
+### Real embeddings & live extraction (optional, needs keys)
+
+- **Embeddings**: with `OPENAI_API_KEY` set, the resolver uses `text-embedding-3-small`
+  (cached in Postgres so each name is embedded once); without a key it falls back to the
+  offline stub. Tests/eval are unaffected.
+- **Extraction**: `rec.ingest_text(name, text)` / `POST /ingest-text` runs free text through
+  Graphiti with **Claude** (needs `ANTHROPIC_API_KEY` for the LLM + `OPENAI_API_KEY` for
+  Graphiti's embeddings). Try it with `uv run python -m demo.graphiti_demo`. The mapping is
+  validated in CI by a recorded fixture (`tests/test_graphiti_mapping.py`) with no live key.
 
 ## The defining demo (`make demo`)
 
@@ -74,13 +125,18 @@ deterministic demo and tests don't need it.
 
 ## Layout
 
-- `src/reconcile/resolution/` — blocking, relational features, weighted-rule scorer,
-  collective propagation, confidence bander, constrained clustering.
-- `src/reconcile/store/` — the Postgres decision store (source of truth).
-- `src/reconcile/graph/` — Neo4j adapter, Graphiti ingest, non-destructive reconciler.
-- `src/reconcile/ops/` — `resolve`, reversible `split`, constraint `replay`, change `events`.
+- `src/reconcile/sdk.py` — the `Reconciler` SDK facade. `src/reconcile/client.py` — HTTP client.
+- `src/reconcile/resolution/` — blocking, relational features (incl. Adamic–Adar shared
+  neighbors), weighted-rule scorer, collective propagation, confidence bander, constrained
+  clustering.
+- `src/reconcile/store/` — the Postgres decision store (source of truth) + embedding cache.
+- `src/reconcile/graph/` — Neo4j adapter, Graphiti/Claude ingest, non-destructive reconciler.
+- `src/reconcile/ops/` — `resolve`, reversible `split`, `retract` (undo), constraint `replay`,
+  change `events`.
+- `src/reconcile/api/` — FastAPI service (auth, OpenAPI). `examples/` — SDK + HTTP usage.
 - `eval/hard_cases.yaml` — the hand-built hard-case eval set (the key artifact).
-- `demo/` — the defining end-to-end demo.
+- `demo/` — the defining end-to-end demo (`demo.py`) and the live Claude-extraction demo
+  (`graphiti_demo.py`).
 
 > Status: MVP wedge (Phases 0–2). Review-queue UI and packaging are deferred; the API
 > endpoints that back the UI are built.

@@ -32,6 +32,10 @@ quickstart:       ## Run the SDK quickstart example (no Docker)
 eval:             ## Phase 1 gate: collective vs embedding-only on hard cases (no Docker needed)
 	uv run python -m eval.run_eval
 
+real-eval:        ## Phase 7: real-data validation on the People.ai CRM snapshot (needs eval/real/)
+	uv run python -m eval.build_real_graph
+	uv run python -m eval.run_real_eval
+
 test:             ## Fast unit/moat tests (no Docker needed)
 	uv run pytest -m "not integration" -q
 
