@@ -36,6 +36,10 @@ real-eval:        ## Phase 7: real-data validation on the People.ai CRM snapshot
 	uv run python -m eval.build_real_graph
 	uv run python -m eval.run_real_eval
 
+cross-eval:       ## Phase 7b: cross-source linking (structured CRM + prose) — stresses propagation
+	uv run python -m eval.build_cross_source
+	uv run python -m eval.run_cross_eval
+
 test:             ## Fast unit/moat tests (no Docker needed)
 	uv run pytest -m "not integration" -q
 

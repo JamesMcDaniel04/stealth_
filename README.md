@@ -62,10 +62,10 @@ deterministic demo and tests don't need it.
   `test_sdk.py` / `test_api.py` (SDK + service + auth).
 - **Phase 1 gate**: collective F1 **+0.37** over the embedding-only baseline (`make eval`).
 - **Real-data validation** (Phase 7, `make real-eval`): on a real People.ai CRM relationship
-  graph, relational resolution beats embedding/name by **+0.50 F1** — links acronym/variant
-  company names to the right account via shared contacts (6/6 vs 1/6) and keeps same-name/
-  different-company people apart (10/10 vs 0/10). See [eval/RESULTS.md](eval/RESULTS.md) for the
-  full writeup and honest caveats.
+  graph, relational resolution beats a real OpenAI-embedding baseline by **+0.45 F1** (1.00 vs
+  0.55). The embedder-proof win: it keeps same-name/different-company people apart **10/10 vs
+  0/10** (identical strings give identical vectors, so embeddings can't). See
+  [eval/RESULTS.md](eval/RESULTS.md) for the full writeup and honest caveats.
 - **Live**: the three-act demo passes against **live Neo4j**; `pytest -m integration` covers a
   live Neo4j projection round-trip and (with keys) a live Claude-extraction smoke test.
 
