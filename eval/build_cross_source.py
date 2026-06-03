@@ -29,6 +29,11 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
 
+def _pkey(s: str) -> str:
+    """Order-invariant person key so 'Mikael Ward' matches structured 'Ward Mikael'."""
+    return " ".join(sorted(_norm(s).split()))
+
+
 def build():
     crm = json.loads((REAL / "crm.json").read_text())
     prose = json.loads((REAL / "prose.json").read_text())
@@ -52,7 +57,7 @@ def build():
             pid = f"person-{email}"
             add(pid, c["name"], "Person", {"email": email, "domain": email.split("@")[1]})
             relationships.append({"src": am, "dst": pid, "type": "ENGAGED_WITH"})
-            struct_person_by_account[aid][_norm(c["name"])] = pid
+            struct_person_by_account[aid][_pkey(c["name"])] = pid
 
     account_ids = [a["peopleai_account_id"] for a in crm["accounts"]]
 
@@ -67,7 +72,7 @@ def build():
             add(pid, person, "Person", {})  # no email anchor
             prose_people.append(pid)
             # gold: this prose person is the structured contact of the same name in the account
-            struct = struct_person_by_account.get(aid, {}).get(_norm(person))
+            struct = struct_person_by_account.get(aid, {}).get(_pkey(person))
             if struct:
                 labels.append({"a": pid, "b": struct, "label": "same", "category": "person_link"})
         # prose company surface forms, each connected to the prose people

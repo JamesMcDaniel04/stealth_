@@ -1,12 +1,14 @@
 # Real-data validation results (Phase 7)
 
-**Verdict: PASS.** On a real People.ai CRM relationship graph, resolving entities by their
-relationships + anchors **beats a real semantic-embedding baseline by +0.45 F1** (1.00 vs 0.55).
-Baseline = OpenAI `text-embedding-3-small` — a strong, fair competitor, not the stub. The core
-thesis holds off synthetic data, and the win is sharply located (see below). A second test on
-genuinely overlapping sources (structured CRM contacts ↔ free-text call summaries) also produced
-the **first real-data case that requires collective *propagation*** — linking the alias
-"HyperScience" to the ABBYY account purely through shared people (`make cross-eval`).
+**Verdict: PASS.** On a real People.ai CRM relationship graph (**10 accounts, 126 contacts**),
+resolving entities by relationships + anchors beats a real semantic-embedding baseline
+(OpenAI `text-embedding-3-small`). The decisive, scale-invariant result: it disambiguates
+**same-name / different-company** people **10/10** where embedding-only is confidently wrong
+**10/10** — a failure no better embedder can fix (identical strings → identical vectors). A second
+test on genuinely overlapping sources (structured CRM contacts ↔ free-text call summaries)
+produced **two real cases that require collective *propagation*** — linking the alias
+"HyperScience" and the acronym "KKR" to their accounts purely through shared people, where both
+embeddings and pairwise scoring fail (`make cross-eval`).
 
 ## What was tested
 
@@ -14,44 +16,37 @@ The original plan (link messy Granola transcript mentions to CRM accounts) wasn'
 the user's Granola had **1 meeting in 30 days, unrelated** to the CRM accounts — no overlap to
 measure. We pivoted (with the user) to the strongest feasible real test:
 
-- **Real relationship graph** pulled live via People.ai MCP: 6 accounts (ABBYY, Five9, Western
-  Digital, KKR, Nuance, Sam's Club), their **83 real contacts** (names, emails, titles), and
-  **111 ENGAGED_WITH edges**. Canonical identity anchored by People.ai account id + email.
+- **Real relationship graph** pulled live via People.ai MCP: **10 accounts** (ABBYY, Five9,
+  Western Digital, KKR, Nuance, Sam's Club, Twitch, NBCUniversal, Commonwealth, Mars Veterinary),
+  their **126 real contacts** (names, emails, titles), and **171 ENGAGED_WITH edges**. Canonical
+  identity anchored by People.ai account id + email.
 - **Injected company-name variants** (controlled): one messy "call mention" per account under a
-  variant name (WD, KKR, Nuance, Sam's Wholesale, Five Nine, Abby Software), with **no anchor**,
-  attached to 3 of that account's **real** contacts. Only the surface name is synthetic; the
-  relationship signal is real. Gold labels known by construction.
-- **Natural hard cases** (not injected): the data contains ~10 **same-name / different-company**
-  contacts (Anna King@nuance vs Anna King@samsclub, Dennis Lee, Katherine Lewis, …) and a
-  genuinely **shared partner** (`aiden.clark@deloitte.com`) engaged on two accounts.
+  variant name (WD, KKR, NBCU, Mars Vet, …), with **no anchor**, attached to 3 of that account's
+  **real** contacts. Only the surface name is synthetic; the relationship signal is real.
+- **Natural hard cases** (not injected): ~10 **same-name / different-company** contacts
+  (Anna King@nuance vs Anna King@samsclub, Dennis Lee, Katherine Lewis, …) and a genuinely
+  **shared partner** (`aiden.clark@deloitte.com`) engaged on two accounts.
 
-61 labeled pairs: 6 variant→account (same), 30 variant→wrong-account, 15 account↔account, 10
-person collisions. Reproduce: `uv run python -m eval.build_real_graph && uv run python -m eval.run_real_eval`
-(spot-check the labels with `uv run python -m eval.label_pairs`).
+155 labeled pairs (10 variant→account, 90 variant→wrong, 45 account↔account, 10 person
+collisions). Reproduce: `make real-eval` (spot-check labels with `uv run python -m eval.label_pairs`).
 
 ## Numbers
 
-Baseline: OpenAI `text-embedding-3-small` (real semantic embeddings). Decisions at a realistic
-threshold (0.5):
+Baseline: OpenAI `text-embedding-3-small` (real semantic embeddings). The decisive, **scale-
+invariant** result is per category at a realistic threshold (0.5) — embedding-only vs ours:
 
-| method | variant links made | name-collisions kept apart |
-|---|---|---|
-| embedding-only | 5 / 6 | **0 / 10** |
-| relational (ours) | **6 / 6** | **10 / 10** |
-
-Pairwise resolution, best-threshold F1 over all 61 pairs:
-
-| method | precision | recall | F1 |
+| hard case | count | embedding-only wrong | ours wrong |
 |---|---|---|---|
-| embedding-only | 0.38 | 1.00 | **0.55** |
-| relational (ours) | 1.00 | 1.00 | **1.00** |
+| same-name / different company | 10 | **10 (all)** | **0** |
+| company variant → its account | 10 | 1 | 0 |
+| distinct accounts (incl. shared rep/partner) | 45 | 0 | 0 |
+| variant → wrong account | 90 | 0 | 0 |
 
-Errors by category at 0.5 — embedding-only vs ours: `person_collision` **10/10 → 0/10**;
-`variant_link` 1/6 → 0/6; `account_pair` 0/15 → 0/15; `variant_wrong` 0/30 → 0/30.
-
-**Where the gap is now:** with a real semantic baseline, embedding-only handles acronym/variant
-company linking well (5/6) — so that part of the win narrowed vs the stub run. The entire residual
-gap is the **10/10 person-collision failure**, which is structural and embedder-proof.
+Best-threshold F1 over all 155 pairs: embedding-only **0.67**, ours **1.00** (**+0.33**). The
+aggregate gap *shrinks* as you add accounts — more distinct accounts add easy negatives that
+embeddings handle — which is itself the finding: **with a strong embedder, the durable,
+embedder-proof win is same-name disambiguation (10/10), not abbreviation linking** (embeddings do
+that fine). The other structural win is propagation — see below.
 
 ## The case that decides it
 
@@ -62,9 +57,10 @@ gap is the **10/10 person-collision failure**, which is structural and embedder-
   merge them. Strings/embeddings cannot disambiguate two different people who share a name;
   relationships + anchors can. This single failure mode is the entire residual F1 gap.
 - **Acronym/variant linking** — `WD` ~ `Western Digital Corporation` (name sim 0.07): the real
-  embedding baseline now links this correctly (semantic), so embedding-only scores 5/6 here.
-  Relational also gets 6/6 via the **3 shared contacts** — robust, and the way it works when names
-  give nothing (it linked via relationships before the embedder could).
+  embedding baseline now links most of these (9/10) semantically. Relational gets 10/10 via the
+  **3 shared contacts** — robust, and the way it works when names give nothing (it linked via
+  relationships before the embedder could). The acronym `KKR` (cross-source test) is one the
+  embedder still misses — see propagation below.
 - **Hub confounder handled** — Nuance vs Sam's Club share **5 neighbors** (a Deloitte partner +
   4 internal reps; Adamic-Adar 2.36, a real pull to merge), yet are kept **separate** (relational
   p=0.34) by the anchor conflict + inverse-degree down-weighting of hub contacts.
@@ -77,22 +73,26 @@ A second test on genuinely overlapping real sources: People.ai's **structured co
 to companies in messy forms — including, for ABBYY, the natural alias **"HyperScience"** (shares
 zero string with "ABBYY"). Reproduce: `make cross-eval`.
 
-Pipeline: prose people merge with their structured contact by name (**14/14 bootstrap**); that
-gives each prose company a real shared neighborhood, which links it to the right account.
+4 prose accounts, 7 company surface forms, 27 prose person-mentions. Pipeline: prose people merge
+with their structured contact by name (**27/27 bootstrap**); that gives each prose company a real
+shared neighborhood, which links it to the right account.
 
 | prose company → account | name sim | embedding-only | pairwise (round 0) | collective |
 |---|---|---|---|---|
-| `Abbyy` → ABBYY | 0.20 | 0.98 ✓ | 0.30 ✗ | ✓ |
 | `HyperScience` → ABBYY | **0.00** | **0.03 ✗** | **0.10 ✗** | **✓** |
-| `Five9` → Five9 | 1.00 | 1.00 ✓ | 0.73 ✓ | ✓ |
+| `KKR` → Kohlberg Kravis Roberts | **0.23** | **0.22 ✗** | **0.22 ✗** | **✓** |
+| `Abbyy` → ABBYY | 0.20 | 0.98 ✓ | 0.30 ✗ | ✓ |
+| `Five9`, `Western Digital`, full names | 0.6–1.0 | ✓ | ✓/✗ | ✓ |
 
-Linked to the correct account: embedding-only **2/3**, pairwise **1/3**, **collective 3/3**.
+Linked to the correct account: embedding-only **5/7**, pairwise **4/7**, **collective 7/7**.
 
-`HyperScience → ABBYY` is the **first real-data case that requires collective *propagation***, not
-just relational features: it is invisible to embeddings (no string/semantic overlap) **and** to
-pairwise relational scoring (no shared neighbor exists until the prose people resolve to the
-structured contacts). It appears only after propagation merges those people — the synthetic
-Wayne/Gotham capability, now demonstrated on real People.ai data.
+Two cases need **collective *propagation***, not just relational features: `HyperScience` (a real
+alias with zero string overlap) and `KKR` (an acronym a real semantic embedder still misses at
+threshold, 0.22). Both are invisible to embeddings **and** to pairwise relational scoring — no
+shared neighbor exists until the prose people resolve to the structured contacts first. They
+appear only after propagation merges those people: the synthetic Wayne/Gotham capability,
+demonstrated on real People.ai data. (Collective also beats pairwise on `Abbyy` for the same
+reason — 3 of 7 forms needed the two-hop.)
 
 ## Honest caveats
 
@@ -104,9 +104,12 @@ Wayne/Gotham capability, now demonstrated on real People.ai data.
   nothing beyond pairwise-relational here (no two-hop cases like the synthetic Wayne/Gotham). What
   is validated on real data is "relationships + anchors ≫ strings/embeddings"; propagation is
   validated separately on the synthetic set and awaits a denser real graph to stress.
-- **Company variants are injected** (attached to real contacts); the person-collision and
-  shared-partner hard cases are 100% real. Data is a People.ai **demo org**, ~6 accounts — small,
-  realistic in shape, synthetic in origin.
+- **Company variants are injected** (attached to real contacts); the person-collision,
+  shared-partner, and cross-source alias/acronym cases are 100% real. Data is a People.ai **demo
+  org**, 10 accounts — realistic in shape, synthetic in origin.
+- **Scaling note:** same-name collisions (10) didn't grow with more accounts — the new accounts had
+  unique contact names — so the collision result is 10/10 at both 6 and 10 accounts. The
+  cross-source propagation cases (2) and variant links (10) did scale with the added accounts/prose.
 
 ## So what
 
